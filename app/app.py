@@ -10,6 +10,12 @@ import torch
 from transformers import Wav2Vec2FeatureExtractor, AutoModelForAudioClassification
 import time
 from accent_labels import get_accent_name, format_all_results, AccentLabelMapper
+import gc
+import os
+
+# Set environment variables to limit memory usage
+os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "max_split_size_mb:64"
+os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
 # Set page title and favicon
 st.set_page_config(
@@ -18,9 +24,6 @@ st.set_page_config(
     layout="wide"
 )
 
-# -------------------
-# Helpers
-# -------------------
 
 # Update the download_video function to handle Google Drive links and add a progress bar
 def download_video(url, tmp_file):
@@ -93,7 +96,6 @@ def download_video(url, tmp_file):
         st.error(f"Unexpected error during download: {str(e)}")
         return False
 
-# Update the extract_audio_from_video function to handle missing ffmpeg better
 def extract_audio_from_video(video_path, audio_path):
     try:
         # Check if the video file exists and has content
@@ -154,25 +156,12 @@ def extract_audio_from_video(video_path, audio_path):
         except Exception as e:
             st.error(f"Audio extraction failed: {str(e)}")
             
-            # Last resort: try to create a dummy audio file
-            try:
-                st.warning("Creating an empty audio file...")
-                import numpy as np
-                from scipy.io import wavfile
-                sample_rate = 16000
-                silence = np.zeros(sample_rate * 10, dtype=np.int16)  # 10 seconds of silence
-                wavfile.write(audio_path, sample_rate, silence)
-                return True
-            except:
-                st.error("Failed to create even a dummy audio file.")
-                return False
-            
     except Exception as e:
         st.error(f"Error extracting audio: {str(e)}")
         st.error("Try using a different video file or URL.")
         return False
 
-# Update the load_audio_robust function to only show the successful method
+
 def load_audio_robust(audio_path):
     """Load audio using multiple methods with fallbacks"""
     st.info(f"Loading audio from {audio_path}")
@@ -236,7 +225,7 @@ def load_audio_robust(audio_path):
         except Exception:
             pass
     
-    # Method 4: Try scipy.io.wavfile (most likely to work as it has fewer dependencies)
+    # Method 4: Try scipy.io.wavfile
     try:
         from scipy.io import wavfile
         sample_rate, waveform = wavfile.read(audio_path)
@@ -284,56 +273,7 @@ def load_audio_robust(audio_path):
     except Exception:
         pass
     
-    # Method 6: Most basic method - try to create from raw bytes
-    try:
-        with open(audio_path, 'rb') as f:
-            # Skip WAV header (44 bytes) if it's a WAV file
-            header = f.read(44)
-            if header.startswith(b'RIFF') and b'WAVE' in header:
-                data = f.read()
-            else:
-                # If not a WAV, try reading from beginning
-                f.seek(0)
-                data = f.read()
-        
-        import numpy as np
-        # Try to interpret as 16-bit PCM
-        audio_np = np.frombuffer(data, dtype=np.int16).astype(np.float32) / 32768.0
-        waveform = torch.tensor(audio_np)
-        sample_rate = 16000  # Assume 16kHz
-        st.success("Successfully loaded audio")
-        return waveform, sample_rate
-    except Exception:
-        pass
-    
-    # Last resort: Create synthetic audio
-    st.error("Could not load audio. Using synthetic audio data instead.")
-    
-    # Create synthetic speech-like noise for testing
-    import numpy as np
-    sample_rate = 16000
-    duration = 5  # 5 seconds
-    t = np.linspace(0, duration, int(sample_rate * duration), endpoint=False)
-    
-    # Create a mixture of sine waves to simulate speech formants
-    waveform_np = (
-        0.5 * np.sin(2 * np.pi * 150 * t) +  # Fundamental ~150Hz
-        0.3 * np.sin(2 * np.pi * 300 * t) +  # First harmonic
-        0.1 * np.sin(2 * np.pi * 450 * t) +  # Second harmonic
-        0.05 * np.random.randn(len(t))       # Noise component
-    )
-    
-    # Apply amplitude modulation to simulate speech cadence
-    modulation = 0.5 + 0.5 * np.sin(2 * np.pi * 0.5 * t)
-    waveform_np = waveform_np * modulation
-    
-    # Normalize
-    waveform_np = waveform_np / np.max(np.abs(waveform_np))
-    
-    # Convert to tensor
-    waveform = torch.tensor(waveform_np, dtype=torch.float32)
-    
-    return waveform, sample_rate
+
 
 # Update init_audio_backends to hide unnecessary warnings
 def init_audio_backends():
@@ -380,7 +320,6 @@ def init_audio_backends():
     except Exception:
         pass
 
-# Modify the check_dependencies function to hide warnings
 def check_dependencies():
     """Check for critical dependencies"""
     missing_deps = []
@@ -462,7 +401,6 @@ def fallback_transcription(audio_path):
         # If SpeechRecognition isn't available or fails
         return "Audio detected. Transcription requires FFmpeg."
 
-# Modify the classify_accent function to clean up the UI messages
 def classify_accent(audio_path, feature_extractor, model, id2label):
     try:
         # Load audio using the robust function with multiple fallbacks
@@ -489,6 +427,12 @@ def classify_accent(audio_path, feature_extractor, model, id2label):
             waveform = resampler(waveform)
             sample_rate = 16000
         
+        quality_score = assess_audio_quality(waveform, sample_rate)
+        
+        waveform = enhance_audio_quality(waveform, sample_rate)
+        
+        waveform = extract_speech_segments(waveform, sample_rate)
+        
         # Take a 10-second segment if longer (or pad if shorter)
         target_length = 16000 * 10
         if waveform.size(0) > target_length:
@@ -510,23 +454,17 @@ def classify_accent(audio_path, feature_extractor, model, id2label):
         except:
             pass
         
-        # Process through model
+        # Process through model using ensemble approach
         st.info("Detecting accent pattern...")
-        inputs = feature_extractor(waveform, sampling_rate=16000, return_tensors="pt", padding=True)
-        with torch.no_grad():
-            outputs = model(**inputs)
+        raw_accent, raw_confidence, probs_np = ensemble_classification(
+            waveform, sample_rate, feature_extractor, model, id2label
+        )
         
-        # Get probabilities
-        probs = torch.nn.functional.softmax(outputs.logits, dim=1)
-        probs_np = probs[0].numpy()
-        
-        # Get top result
-        top_prob_idx = np.argmax(probs_np)
-        raw_accent = id2label[top_prob_idx]
+        # Calibrate confidence based on audio quality
+        confidence = calibrate_confidence(raw_confidence, quality_score)
         
         # Convert to human-readable accent name
         accent = get_accent_name(raw_accent)
-        confidence = float(probs_np[top_prob_idx])
         
         # Get all results for display with human-readable accent names
         all_results = [(get_accent_name(id2label[i]), float(probs_np[i])) for i in range(len(id2label))]
@@ -643,12 +581,204 @@ def load_accent_model():
             id2label = model.id2label
             
             return feature_extractor, model, id2label
+        
+# -------------------
+# Audio Enhancement & Confidence Improvements
+# -------------------
+
+def enhance_audio_quality(waveform, sample_rate):
+    """Apply audio enhancements to improve classification accuracy"""
+    try:
+        # Normalize amplitude to improve consistency
+        waveform = waveform / (waveform.abs().max() + 1e-10)
+        
+        # Apply pre-emphasis filter to enhance high frequencies (important for accent detection)
+        pre_emphasis = 0.97
+        emphasized_waveform = torch.cat([waveform[0:1], waveform[1:] - pre_emphasis * waveform[:-1]])
+        
+        # Apply noise reduction if signal-to-noise ratio is low
+        noise_threshold = 0.005
+        if torch.mean(torch.abs(waveform[:int(sample_rate*0.5)])) < noise_threshold:
+            # Estimate noise from first 0.5s (assuming it's silence)
+            noise_profile = waveform[:int(sample_rate*0.5)]
+            noise_power = torch.mean(noise_profile ** 2)
+            # Apply simple spectral subtraction
+            signal_power = waveform ** 2
+            alpha = 2.0  # Over-subtraction factor
+            waveform = torch.sign(waveform) * torch.sqrt(torch.clamp(signal_power - alpha * noise_power, min=0))
+            
+        return emphasized_waveform
+    except Exception as e:
+        # If enhancement fails, return original waveform
+        return waveform
+
+def extract_speech_segments(waveform, sample_rate):
+    """Extract only segments containing speech"""
+    try:
+        # Parameters
+        frame_length = int(sample_rate * 0.025)  # 25ms frames
+        hop_length = int(sample_rate * 0.010)    # 10ms hop
+        energy_threshold = 0.01                  # Energy threshold
+        
+        # Calculate frame energy
+        frames = waveform.unfold(0, frame_length, hop_length)
+        frame_energy = torch.sum(frames ** 2, dim=1)
+        
+        # Detect speech frames (where energy > threshold)
+        speech_frames = frame_energy > energy_threshold
+        
+        # Only keep segments with at least 5 consecutive speech frames
+        speech_segments = []
+        current_segment = []
+        
+        for i, is_speech in enumerate(speech_frames):
+            if is_speech:
+                current_segment.append(i)
+            else:
+                if len(current_segment) >= 5:  # At least 50ms of speech
+                    speech_segments.append(current_segment)
+                current_segment = []
+        
+        # Don't forget the last segment
+        if len(current_segment) >= 5:
+            speech_segments.append(current_segment)
+        
+        # Concatenate speech segments
+        if not speech_segments:
+            return waveform  # Return original if no speech detected
+        
+        # Extract and concatenate speech segments
+        speech_waveform = torch.cat([
+            waveform[segment[0] * hop_length:
+                    (segment[-1] * hop_length + frame_length)]
+            for segment in speech_segments
+        ])
+        
+        return speech_waveform
+    except Exception as e:
+        # If segmentation fails, return original waveform
+        return waveform
+
+def assess_audio_quality(waveform, sample_rate):
+    """Calculate audio quality metrics for confidence adjustment"""
+    try:
+        # 1. Signal-to-noise ratio estimate
+        signal = waveform
+        noise = signal[:min(int(sample_rate * 0.1), len(signal))]  # First 100ms
+        
+        signal_power = torch.mean(signal ** 2)
+        noise_power = torch.mean(noise ** 2) + 1e-10
+        snr = 10 * torch.log10(signal_power / noise_power)
+        
+        # 2. Dynamic range
+        dynamic_range = torch.max(torch.abs(signal)) / (torch.mean(torch.abs(signal)) + 1e-10)
+        
+        # 3. Zero crossing rate (can indicate speech presence)
+        zero_crossings = torch.sum(torch.sign(signal[1:]) != torch.sign(signal[:-1]))
+        zcr = zero_crossings / (len(signal) - 1)
+        
+        # Normalize metrics to 0-1 range
+        snr_score = min(1.0, max(0.0, float(snr) / 30.0))
+        dr_score = min(1.0, max(0.0, float(dynamic_range) / 10.0))
+        zcr_score = min(1.0, max(0.0, float(zcr) * 100))
+        
+        # Combined quality score (weighted average)
+        quality_score = 0.5 * snr_score + 0.3 * dr_score + 0.2 * zcr_score
+        
+        return quality_score
+    except Exception as e:
+        # Default quality score if assessment fails
+        return 0.5
+
+def calibrate_confidence(raw_confidence, audio_quality_score):
+    """Calibrate confidence scores based on audio quality"""
+    try:
+        # Adjust confidence based on audio quality
+        calibrated_confidence = raw_confidence * (0.7 + 0.3 * audio_quality_score)
+        
+        # Apply sigmoid transformation to spread out mid-range confidences
+        # This makes the distinction between medium and high confidence clearer
+        from scipy.special import expit
+        calibrated_confidence = expit((calibrated_confidence - 0.5) * 5)
+        
+        return calibrated_confidence
+    except Exception as e:
+        # Return original confidence if calibration fails
+        return raw_confidence
+
+def ensemble_classification(waveform, sample_rate, feature_extractor, model, id2label):
+    """Use an ensemble approach by classifying multiple segments of audio"""
+    try:
+        # Split audio into multiple segments
+        segment_length = int(sample_rate * 3)  # 3-second segments
+        hop_length = int(sample_rate * 1.5)    # 1.5-second hop
+        
+        # Create segments
+        segments = []
+        for start in range(0, max(1, len(waveform) - segment_length), hop_length):
+            end = start + segment_length
+            if end <= len(waveform):
+                segments.append(waveform[start:end])
+        
+        # If audio is too short, just use the whole thing
+        if not segments:
+            segments = [waveform]
+        
+        # Classify each segment
+        results = []
+        for segment in segments:
+            inputs = feature_extractor(segment, sampling_rate=sample_rate, return_tensors="pt", padding=True)
+            with torch.no_grad():
+                outputs = model(**inputs)
+            
+            # Get probabilities
+            probs = torch.nn.functional.softmax(outputs.logits, dim=1)
+            probs_np = probs[0].numpy()
+            results.append(probs_np)
+        
+        # Aggregate results (weighted average, giving more weight to high-confidence segments)
+        if len(results) > 1:
+            # Calculate max probability for each segment as a quality measure
+            max_probs = [np.max(res) for res in results]
+            # Normalize to create weights
+            weights = np.array(max_probs) / sum(max_probs)
+            
+            # Weighted average
+            final_probs = np.average(results, axis=0, weights=weights)
+        else:
+            final_probs = results[0]
+        
+        # Get top result
+        top_prob_idx = np.argmax(final_probs)
+        raw_accent = id2label[top_prob_idx]
+        
+        # Get confidence
+        confidence = float(final_probs[top_prob_idx])
+        
+        return raw_accent, confidence, final_probs
+    except Exception as e:
+        # Fall back to standard classification if ensemble fails
+        inputs = feature_extractor(waveform, sampling_rate=sample_rate, return_tensors="pt", padding=True)
+        with torch.no_grad():
+            outputs = model(**inputs)
+        
+        # Get probabilities
+        probs = torch.nn.functional.softmax(outputs.logits, dim=1)
+        probs_np = probs[0].numpy()
+        
+        # Get top result
+        top_prob_idx = np.argmax(probs_np)
+        raw_accent = id2label[top_prob_idx]
+        
+        # Get confidence
+        confidence = float(probs_np[top_prob_idx])
+        
+        return raw_accent, confidence, probs_np
 
 # -------------------
 # Streamlit UI
 # -------------------
 
-# Enhanced CSS for a dark theme UI matching the screenshot
 st.markdown("""
 <style>
     /* Overall page styling */
@@ -820,9 +950,7 @@ if process_btn and source_path:
         
         # Display results with improved styling
         st.markdown("## 📊 Results")
-        
-        
-        
+               
         # Display transcription
         st.subheader("Transcribed Speech")
         st.write(transcription)
@@ -830,13 +958,28 @@ if process_btn and source_path:
         # Display accent classification with improved visualization
         st.subheader("Accent Analysis")
         
+        formatted_confidence = f"{confidence*100:.1f}"
+        
         # Format confidence label
-        conf_class = "confidence-high" if confidence > 0.7 else "confidence-medium" if confidence > 0.4 else "confidence-low"
+        conf_class = "confidence-high" if confidence > 0.75 else "confidence-medium" if confidence > 0.5 else "confidence-low"
         
         st.markdown(f"""
         **Detected Accent:** {accent}  
         **Confidence Score:** <span class='{conf_class}'>{confidence*100:.1f}%</span>
         """, unsafe_allow_html=True)
+        
+        # Add confidence score explanation
+        with st.expander("What does the confidence score mean?"):
+            st.markdown("""
+            **Confidence Score Explanation:**
+            
+            - **High (>75%)**: Strong accent match with high reliability
+            - **Medium (50-75%)**: Probable accent match with moderate reliability
+            - **Low (<50%)**: Possible accent match but with low reliability
+            
+            Factors affecting confidence include audio quality, speech clarity, 
+            background noise, and how well the accent matches known patterns.
+            """)
         
         # Visual chart for accent confidence
         try:
@@ -848,12 +991,15 @@ if process_btn and source_path:
             labels = [acc for acc, _ in top_accents]
             values = [prob * 100 for _, prob in top_accents]
             
+            values[0] = confidence * 100
+            
             # Create a horizontal bar chart
             fig, ax = plt.subplots(figsize=(10, 4))
             bars = ax.barh(labels, values, color=sns.color_palette("Blues", len(labels)))
             
             # Add percentage labels
             for i, v in enumerate(values):
+                formatted_value = f"{v:.1f}%"
                 ax.text(v + 1, i, f"{v:.1f}%", va='center')
                 
             ax.set_xlabel("Confidence (%)")
