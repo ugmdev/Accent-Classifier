@@ -451,43 +451,10 @@ if process_btn and video_url:
         
         # Summary
         st.subheader("💡 Summary")
-        
-        # Classification certainty description
-        if confidence > 0.85:
-            certainty = "very high"
-        elif confidence > 0.7:
-            certainty = "high"
-        elif confidence > 0.5:
-            certainty = "moderate"
-        elif confidence > 0.3:
-            certainty = "low"
-        else:
-            certainty = "very low"
-            
-        # Audio quality description  
-        if audio_quality > 0.8:
-            quality_desc = "excellent"
-        elif audio_quality > 0.6:
-            quality_desc = "good"
-        elif audio_quality > 0.4:
-            quality_desc = "acceptable"
-        else:
-            quality_desc = "poor"
-        
+    
         st.markdown(f"""
-        The speaker's accent is classified as **{accent}** with **{certainty} confidence** ({rounded_confidence}%).
-        
-        The audio quality is **{quality_desc}** ({audio_quality*100:.1f}%), which {
-        "strongly supports" if audio_quality > 0.7 else 
-        "adequately supports" if audio_quality > 0.5 else 
-        "somewhat limits"} the accuracy of the accent classification.
-        
-        **Alternative possibilities:**
+        The speaker's accent is classified as **{accent}** with confidence  ({rounded_confidence}%).
         """)
-        
-        # Show alternative accents
-        for i, (acc, prob) in enumerate(all_results[1:4]):  # Top 3 alternatives
-            st.markdown(f"- {acc}: {prob*100:.1f}%")
         
 
 elif process_btn:  # Button was clicked but no URL was provided
