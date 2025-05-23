@@ -281,11 +281,10 @@ st.subheader("About")
 st.info("""
 This AI tool:
 
-✅ Detects spoken English\n
-✅ Classifies accent type\n
-✅ Provides confidence score\n
+1. Detects spoken English\n
+2. Classifies accent type\n
+3. Provides confidence score\n
 
-Perfect for accent training, language learning, and candidate screening.
 """)
 
 # Agent debugging tools
@@ -397,15 +396,6 @@ if process_btn and video_url:
             ax.set_title("Audio Waveform")
             ax.set_xlabel("Time (s)")
             ax.set_ylabel("Amplitude")
-            st.pyplot(fig)
-            
-            # Optionally add spectrogram
-            st.subheader("Spectrogram")
-            fig, ax = plt.subplots(figsize=(10, 4))
-            D = librosa.amplitude_to_db(np.abs(librosa.stft(y)), ref=np.max)
-            img=librosa.display.specshow(D, sr=sr, x_axis='time', y_axis='log', ax=ax)
-            ax.set_title("Audio Spectrogram")
-            fig.colorbar(img, ax=ax, format='%+2.0f dB')
             st.pyplot(fig)
             
         except Exception as e:
