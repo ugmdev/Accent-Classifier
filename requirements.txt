@@ -14,4 +14,4 @@ SoundFile>=0.10.0
 PySoundFile>=0.9.0
 
 # Speech recognition
-openai-whisper==20230314
+git+https://github.com/openai/whisper.git
