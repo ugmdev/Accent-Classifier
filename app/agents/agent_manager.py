@@ -25,7 +25,7 @@ class AgentManager:
             self.transcription_agent = TranscriptionAgent(model_name="base")
             
             # Initialize accent classifier agent
-            self.accent_agent = AccentClassifierAgent(model_name="CAiRE/wav2vec2-large-xlsr-53-english-accents")
+            self.accent_agent = AccentClassifierAgent(model_name="facebook/wav2vec2-base")
             
             self.initialized = True
             st.success("Agents initialized successfully")
