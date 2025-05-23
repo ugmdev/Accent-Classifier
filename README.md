@@ -1,105 +1,156 @@
 # English Accent Classifier
 
-![Accent Classifier](https://img.shields.io/badge/AI-Accent%20Classification-blue)
-![Python](https://img.shields.io/badge/Python-3.10-green)
-![Streamlit](https://img.shields.io/badge/Streamlit-1.25.0-red)
+## Overview
 
-A machine learning application that classifies English accents from video content. The system extracts audio from videos, transcribes speech, and uses advanced neural networks to identify the speaker's accent.
+The English Accent Classifier is an advanced audio processing system that uses machine learning to identify different English accents from speech. Built with an agent-based architecture, it combines powerful deep learning models with sophisticated audio processing techniques to deliver accurate accent classification.
 
-## 🎯 Features
+## Features
 
-- **Video Processing**: Extract audio from videos via URL
-- **Speech Recognition**: Transcribe speech with OpenAI's Whisper model
-- **Accent Classification**: Identify accents with confidence scores
-- **Interactive UI**: User-friendly Streamlit interface with visualizations
+- **Multi-accent Detection**: Identifies 6 distinct English accents (American, British, Indian, Australian, Canadian, Non-native)
+- **High-quality Audio Processing**: Advanced audio enhancement and speech extraction
+- **Confidence Calibration**: Sophisticated confidence scoring based on audio quality and accent traits
+- **Visual Analysis**: Waveform and spectrogram visualization
+- **Video Support**: Extract audio from video files (including Google Drive links)
+- **Transcription**: Full speech-to-text capability with quality assessment
 
-## 📊 Supported Accents
+## Machine Learning Architecture
 
-The classifier can identify multiple English accents, including:
-- American English
-- British English
-- Indian English
-- Australian English
-- Canadian English
-- Non-native English variations
+### Models Used
 
-## 🔧 Installation
+1. **Speech Recognition**:
+   - **Model**: OpenAI's Whisper (Base variant)
+   - **Purpose**: Transcribe speech to text for both display and text-based accent analysis
+   - **Features**: Multi-language capability, high accuracy, noise resilience
+
+2. **Accent Classification**:
+   - **Model**: Facebook Wav2Vec2 (`facebook/wav2vec2-base`)
+   - **Architecture**: Fine-tuned self-supervised learning model with a classification head
+   - **Classes**: Six accent categories with custom probability calibration
+
+### Agent-based System Design
+
+The application uses a modular agent-based architecture:
+
+1. **TranscriptionAgent**: Handles speech-to-text conversion
+   - Audio preprocessing
+   - Transcription using Whisper
+   - Quality assessment
+   - Multiple fallback mechanisms
+
+2. **AccentClassifierAgent**: Performs accent classification
+   - Robust audio loading
+   - Audio quality enhancement
+   - Speech segment extraction
+   - Ensemble classification
+   - Confidence calibration
+   - Text-based accent feature detection
+
+3. **AgentManager**: Coordinates the workflow
+   - Manages communication between agents
+   - Orchestrates the processing pipeline
+   - Error handling and recovery
+
+## Workflow
+
+1. **Input**: User uploads a video URL or file
+2. **Video Processing**:
+   - Download video (with special handling for Google Drive links)
+   - Extract audio track
+3. **Audio Analysis**:
+   - Preprocess audio (normalization, enhancement)
+   - Extract speech segments
+   - Assess audio quality
+4. **Accent Classification**:
+   - Segment audio for ensemble prediction
+   - Generate accent probabilities
+   - Apply special detection for underrepresented accents (e.g., British)
+   - Calibrate confidence based on multiple factors
+5. **Transcription**: Convert speech to text
+6. **Results Presentation**:
+   - Display accent with confidence score
+   - Show audio quality assessment
+   - Visualize audio waveform and spectrogram
+   - Present alternative accent possibilities
+   - Provide detailed summary
+
+## Technical Details
+
+### Audio Processing Techniques
+
+- **Pre-emphasis**: Enhance high frequencies crucial for accent detection
+- **Noise Reduction**: Spectral subtraction for cleaner audio
+- **Speech Segmentation**: Energy-based speech detection
+- **Ensemble Classification**: Segment-based prediction with weighted averaging
+
+### Confidence Calibration
+
+The system uses a multi-factor approach to calibrate confidence:
+- Audio quality metrics (SNR, dynamic range, zero-crossing rate)
+- Probability distribution analysis (margin, concentration)
+- Accent-specific adjustments for model biases
+- Text-based accent feature verification
+
+## Getting Started
 
 ### Prerequisites
-- Python 3.10 or higher
-- Conda package manager
 
-### Setup
+- Python 3.8+
+- FFmpeg (recommended but not required)
+- CUDA-compatible GPU (recommended for faster processing)
 
+### 1. Clone the Repository
 ```bash
-# Clone the repository
 git clone https://github.com/yourusername/accent-classifier.git
 cd accent-classifier
-
-# Run the setup script to create conda environment
-bash setup.sh
-
-# Activate the environment
-conda activate accent_classifier
 ```
 
-## 🚀 Usage
-
+### 2. Run the Setup Script
 ```bash
-# Start the application
+bash setup.sh
+```
+
+### 3. Activate the Environment
+```bash
+conda activate accent-classifier
+```
+
+### 4. Launch the Application
+```bash
 streamlit run app/app.py
 ```
 
-Then open your browser and go to http://localhost:8501
+---
 
-### Using the Application
-
-1. Enter a video URL in the input field
-2. Click "Analyze Accent"
-3. View the transcription and accent classification results
-
-## 💻 Technical Implementation
-
-The application uses a pipeline of several components:
-
-1. **Video Processing**: Downloads videos and extracts audio using FFmpeg
-2. **Speech Recognition**: Transcribes audio using Whisper ASR
-3. **Feature Extraction**: Processes audio with Wav2Vec2 feature extraction
-4. **Accent Classification**: Identifies accents using a fine-tuned model
-5. **Result Visualization**: Presents results with confidence scores
-
-## 📈 Improving Model Performance
-
-For better accent classification results, you can:
-
-1. **Use a Better Base Model**: Replace the default model with XLS-R for improved accuracy
-   ```python
-   MODEL_NAME="facebook/wav2vec2-xls-r-300m" streamlit run app/app.py
-   ```
-
-2. **Fine-tune on Specific Accents**: Use the tools in the tools directory to fine-tune the model
-
-## 🧰 Project Structure
+## Project Structure
 
 ```
 accent-classifier/
-├── app/               # Application code
-│   ├── app.py         # Main Streamlit application
-│   └── accent_labels.py  # Accent label mapping utilities
-├── tools/             # Utility scripts organized by functionality
-│   ├── audio/         # Audio processing utilities
-│   ├── models/        # Model training and fine-tuning tools
+├── app/                      
+│   ├── app.py                      # Main Streamlit application
+│   ├── accent_labels.py            # Accent label mapping utilities
+│   └── agents/                     
+│       ├── __init__.py            
+│       ├── agent_manager.py        # Coordination between agents
+│       ├── base_agent.py           # Base agent class
+│       ├── accent_classifier_agent.py  # Accent classification logic
+│       └── transcription_agent.py      # Speech transcription logic
+├── tools/                    
+│   ├── audio/                      # Audio processing utilities
+│   ├── models/                     # Model training and fine-tuning tools
 │   └── ...
-├── setup.sh           # Environment setup script
-└── requirements.txt   # Python dependencies
+├── setup.sh                        # Environment setup script
+└── requirements.txt                # Python dependencies
 ```
 
-## 📝 License
+---
 
-This project is licensed under the MIT License - see the LICENSE file for details.
+## Acknowledgments
 
-## 🙏 Acknowledgments
+- OpenAI for the Whisper ASR model.
+- Facebook AI for the Wav2Vec2 feature extractor.
 
-- [OpenAI Whisper](https://github.com/openai/whisper) for speech recognition
-- [Hugging Face Transformers](https://github.com/huggingface/transformers) for accent models
-- [Streamlit](https://streamlit.io/) for the web interface
+---
+
+## License
+
+This project is licensed under the [MIT License](LICENSE).
