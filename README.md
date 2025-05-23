@@ -1,10 +1,10 @@
 # English Accent Classifier
 
-## 📌 Overview
+## Overview
 
 The English Accent Classifier is an advanced audio processing system that uses machine learning to identify different English accents from speech. Built with an agent-based architecture, it combines powerful deep learning models with sophisticated audio processing techniques to deliver accurate accent classification.
 
-## 🌟 Features
+## Features
 
 - **Multi-accent Detection**: Identifies 6 distinct English accents (American, British, Indian, Australian, Canadian, Non-native)
 - **High-quality Audio Processing**: Advanced audio enhancement and speech extraction
@@ -13,7 +13,7 @@ The English Accent Classifier is an advanced audio processing system that uses m
 - **Video Support**: Extract audio from video files (including Google Drive links)
 - **Transcription**: Full speech-to-text capability with quality assessment
 
-## 🧠 Machine Learning Architecture
+## Machine Learning Architecture
 
 ### Models Used
 
@@ -50,7 +50,7 @@ The application uses a modular agent-based architecture:
    - Orchestrates the processing pipeline
    - Error handling and recovery
 
-## 🔄 Workflow
+## Workflow
 
 1. **Input**: User uploads a video URL or file
 2. **Video Processing**:
@@ -73,7 +73,7 @@ The application uses a modular agent-based architecture:
    - Present alternative accent possibilities
    - Provide detailed summary
 
-## 🛠️ Technical Details
+## Technical Details
 
 ### Audio Processing Techniques
 
