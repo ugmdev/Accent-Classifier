@@ -1,7 +1,5 @@
 # English Accent Classifier
 
-![Accent Classifier Logo](https://i.imgur.com/XYZ123.png)
-
 ## 📌 Overview
 
 The English Accent Classifier is an advanced audio processing system that uses machine learning to identify different English accents from speech. Built with an agent-based architecture, it combines powerful deep learning models with sophisticated audio processing techniques to deliver accurate accent classification.
@@ -100,44 +98,59 @@ The system uses a multi-factor approach to calibrate confidence:
 - FFmpeg (recommended but not required)
 - CUDA-compatible GPU (recommended for faster processing)
 
-### Installation
-
-1. Clone the repository:
+### 1. Clone the Repository
 ```bash
 git clone https://github.com/yourusername/accent-classifier.git
 cd accent-classifier
+```
 
-2. Run the setup script to create the envrionment
+### 2. Run the Setup Script
 ```bash
-git clone https://github.com/yourusername/accent-classifier.git
-cd accent-classifier
+bash setup.sh
+```
 
-3. Activate the environment
+### 3. Activate the Environment
 ```bash
 conda activate accent-classifier
+```
 
-4. Launch the application
-```bash 
+### 4. Launch the Application
+```bash
 streamlit run app/app.py
+```
 
+---
+
+## Project Structure
+
+```
 accent-classifier/
-├── app/                      # Application code
-│   ├── app.py                # Main Streamlit application
-│   ├── accent_labels.py      # Accent label mapping utilities
-│   └── agents/               # Agent-based architecture components
-│       ├── __init__.py       # Package initialization
-│       ├── agent_manager.py  # Coordination between agents
-│       ├── base_agent.py     # Base agent class definition
+├── app/                      
+│   ├── app.py                      # Main Streamlit application
+│   ├── accent_labels.py            # Accent label mapping utilities
+│   └── agents/                     
+│       ├── __init__.py            
+│       ├── agent_manager.py        # Coordination between agents
+│       ├── base_agent.py           # Base agent class
 │       ├── accent_classifier_agent.py  # Accent classification logic
 │       └── transcription_agent.py      # Speech transcription logic
-├── tools/                    # Utility scripts organized by functionality
-│   ├── audio/                # Audio processing utilities
-│   ├── models/               # Model training and fine-tuning tools
+├── tools/                    
+│   ├── audio/                      # Audio processing utilities
+│   ├── models/                     # Model training and fine-tuning tools
 │   └── ...
-├── setup.sh                  # Environment setup script
-└── requirements.txt          # Python dependencies
+├── setup.sh                        # Environment setup script
+└── requirements.txt                # Python dependencies
+```
 
+---
 
-##Acknowledgments
--OpenAI Whisper for the speech recognition model
--Facebook Wav2Vec2 for the audio feature extraction
+## Acknowledgments
+
+- OpenAI for the Whisper ASR model.
+- Facebook AI for the Wav2Vec2 feature extractor.
+
+---
+
+## License
+
+This project is licensed under the [MIT License](LICENSE).
